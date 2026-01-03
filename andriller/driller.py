@@ -292,7 +292,7 @@ class ChainExecution:
 
     def enumerate_files(self, target_dir='/'):
         FILES = []
-        for f in self.adb_iter(f'find {target_dir} -type f -readable'):
+        for f in self.adb.cmditer(f'find {target_dir} -type f -readable'):
             FILES.append(f)
 
     def DataAcquisition(self, run_backup=False, shared=False):
