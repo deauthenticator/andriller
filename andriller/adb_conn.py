@@ -132,12 +132,29 @@ class ADBConn:
     def unstrip(self, data: bytes) -> bytes:
         return re.sub(self.rmr, b'\n', data)
 
-    def cmditer(self, cmd):
+    def cmditer(self, cmd, su=False):
+        """
+        Iteratively yields output lines from an adb shell command.
+
+        Args:
+            cmd (str): Shell command to execute on device.
+            su (bool): Use superuser if the target device has it.
+
+        Example:
+            for line in self.cmditer('find / -type f'):
+                print(line)
+
+        Note: This method does not have a timeout decorator as it yields
+        results incrementally. The caller should implement their own timeout
+        mechanism if needed.
+        """
+        cmd = self._get_adb_cmd(cmd, su=su, _for_out=True)
         process = subprocess.Popen(
-            self.split_cmd(cmd),
+            [self.adb_bin, *cmd],
             shell=False,
             startupinfo=self.startupinfo,
-            stdout=subprocess.PIPE)
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL)
         while True:
             output = process.stdout.readline()
             if output == b'' and process.poll() is not None:

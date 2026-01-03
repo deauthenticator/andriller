@@ -127,3 +127,66 @@ def test_adb_out_uses_exec(ADB, mocker):
     assert res == 'uid(1000)'
     mock_run.assert_called_with([fake_adb.name, 'exec-out', 'id'],
         capture_output=True, shell=False, startupinfo=None)
+
+
+def test_cmditer(ADB, mocker):
+    """Test cmditer properly constructs ADB command and yields output lines."""
+    mock_process = mock.Mock()
+    # Mock readline to return lines and then empty bytes forever
+    readline_values = [b'/data/file1.txt\n', b'/data/file2.txt\n', b'']
+    mock_process.stdout.readline.side_effect = readline_values + [b''] * 100
+    mock_process.poll.side_effect = [None, None, 0] + [0] * 100
+    
+    mock_popen = mocker.patch('andriller.adb_conn.subprocess.Popen', return_value=mock_process)
+    
+    result = list(ADB.cmditer('find /data -type f'))
+    
+    assert result == ['/data/file1.txt', '/data/file2.txt']
+    mock_popen.assert_called_once_with(
+        [fake_adb.name, 'shell', 'find', '/data', '-type', 'f'],
+        shell=False,
+        startupinfo=None,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL
+    )
+
+
+def test_cmditer_with_su(ADB, mocker):
+    """Test cmditer with su parameter."""
+    mock_process = mock.Mock()
+    mock_process.stdout.readline.side_effect = [b'file1\n', b''] + [b''] * 100
+    mock_process.poll.side_effect = [None, 0] + [0] * 100
+    
+    mock_popen = mocker.patch('andriller.adb_conn.subprocess.Popen', return_value=mock_process)
+    
+    result = list(ADB.cmditer('ls', su=True))
+    
+    assert result == ['file1']
+    mock_popen.assert_called_once_with(
+        [fake_adb.name, 'shell', 'su -c', 'ls'],
+        shell=False,
+        startupinfo=None,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL
+    )
+
+
+def test_cmditer_uses_exec(ADB, mocker):
+    """Test cmditer uses exec-out for newer ADB versions."""
+    ADB._is_adb_out_post_v5 = True
+    mock_process = mock.Mock()
+    mock_process.stdout.readline.side_effect = [b'output\n', b''] + [b''] * 100
+    mock_process.poll.side_effect = [None, 0] + [0] * 100
+    
+    mock_popen = mocker.patch('andriller.adb_conn.subprocess.Popen', return_value=mock_process)
+    
+    result = list(ADB.cmditer('id'))
+    
+    assert result == ['output']
+    mock_popen.assert_called_once_with(
+        [fake_adb.name, 'exec-out', 'id'],
+        shell=False,
+        startupinfo=None,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL
+    )
